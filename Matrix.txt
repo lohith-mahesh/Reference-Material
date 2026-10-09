@@ -1,0 +1,42 @@
+display_table(pd.DataFrame([
+    issue_summary(head)
+    for head in ("HPT1", "TRU", "HPT2", "ANY")
+]))
+
+rows = []
+
+for head in ("HPT1", "TRU", "HPT2", "ANY"):
+    result = P15["validation"].get(head, {})
+    test = result.get("test", pd.DataFrame())
+    row = {
+        "Issue": head,
+        "TP: correctly flagged incidents": "Not assessed",
+        "FN: missed incidents": "Not assessed",
+        "FP: flagged controls": "Not assessed",
+        "TN: unflagged controls": "Not assessed",
+        "Unassessed windows": "Not established",
+        "Status": result.get("status", "Not established"),
+    }
+
+    if not test.empty:
+        valid = (
+            test["alert_assessed"].fillna(False).astype(bool)
+            & test["flag"].notna()
+            & test["_label"].isin([0, 1])
+        )
+        evaluated = test.loc[valid]
+        row["Unassessed windows"] = int((~valid).sum())
+
+        if not evaluated.empty:
+            actual = evaluated["_label"].astype(int)
+            flagged = evaluated["flag"].astype(bool)
+            row.update({
+                "TP: correctly flagged incidents": int(((actual == 1) & flagged).sum()),
+                "FN: missed incidents": int(((actual == 1) & ~flagged).sum()),
+                "FP: flagged controls": int(((actual == 0) & flagged).sum()),
+                "TN: unflagged controls": int(((actual == 0) & ~flagged).sum()),
+            })
+
+    rows.append(row)
+
+display_table(pd.DataFrame(rows))
